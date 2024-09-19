@@ -261,7 +261,7 @@ func NewLlamaServer(gpus gpu.GpuInfoList, model string, ggml *GGML, adapters, pr
 		if rocmApuFound {
 			params = append(params, "--no-mmap")
 		}
-	}}
+	}
 
 	if opts.UseMLock {
 		params = append(params, "--mlock")
