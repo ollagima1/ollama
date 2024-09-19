@@ -246,12 +246,22 @@ func NewLlamaServer(gpus gpu.GpuInfoList, model string, ggml *GGML, adapters, pr
 	// For CPU loads we want the memory to be allocated, not FS cache
 	// For AMD APU using share memory in GTT don't use mmap mappin to avoid duplicate memory allocation in RAM and graphic memory GTT (GTT use RAM)
 	if (runtime.GOOS == "windows" && gpus[0].Library == "cuda" && opts.UseMMap == nil) ||
-		(runtime.GOOS == "linux" && systemFreeMemory < estimate.TotalSize && opts.UseMMap == nil) ||
-		(gpus[0].Library == "cpu" && opts.UseMMap == nil) ||
-		(opts.UseMMap != nil && !*opts.UseMMap) ||
-		(runtime.GOOS == "linux" && gpus[0].Library == "rocm" && opts.UseMMap == nil && gpus[0].ApuUseGTT) {
-		params = append(params, "--no-mmap")
-	}
+    (runtime.GOOS == "linux" && systemFreeMemory < estimate.TotalSize && opts.UseMMap == nil) ||
+    (gpus[0].Library == "cpu" && opts.UseMMap == nil) ||
+    (opts.UseMMap != nil && !*opts.UseMMap) {
+    params = append(params, "--no-mmap")
+	} else if runtime.GOOS == "linux" && opts.UseMMap == nil {
+		rocmApuFound := false
+		for _, gpu := range gpus {
+			if gpu.Library == "rocm" && gpu.ApuUseGTT {
+				rocmApuFound = true
+				break
+			}
+		}
+		if rocmApuFound {
+			params = append(params, "--no-mmap")
+		}
+	}}
 
 	if opts.UseMLock {
 		params = append(params, "--mlock")
