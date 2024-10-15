@@ -3,6 +3,7 @@ package gpu
 import (
 	"bufio"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -90,7 +91,11 @@ func GetCPUMem() (memInfo, error) {
 	}
 
 	//Don'r try to load model to RAM that is already used By GTT
-	amdGPUs := AMDGetGPUInfo()
+	amdGPUs, err := AMDGetGPUInfo()
+	if err != nil {
+		slog.Debug("Error getting AMD GPU info: %v", err)
+	}
+
 	for _, gpuInfo := range amdGPUs {
 		if gpuInfo.ApuUseGTT {
 			mem.TotalMemory -= gpuInfo.TotalMemory
