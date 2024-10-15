@@ -99,7 +99,7 @@ func AMDGetGPUInfo() ([]RocmGPUInfo, error) {
 		}
 		return a < b
 	})
-	cpuCount := 0
+	gpuCount := 0
 	for _, match := range matches {
 		slog.Debug("evaluating amdgpu node " + match)
 		fp, err := os.Open(match)
@@ -108,11 +108,6 @@ func AMDGetGPUInfo() ([]RocmGPUInfo, error) {
 			continue
 		}
 		defer fp.Close()
-		nodeID, err := strconv.Atoi(filepath.Base(filepath.Dir(match)))
-		if err != nil {
-			slog.Debug("failed to parse node ID", "error", err)
-			continue
-		}
 
 		scanner := bufio.NewScanner(fp)
 		isCPU := false
@@ -186,12 +181,18 @@ func AMDGetGPUInfo() ([]RocmGPUInfo, error) {
 		// do reliably report VRAM usage.
 
 		if isCPU {
-			cpuCount++
 			continue
 		}
 
-		// CPUs are always first in the list
-		gpuID := nodeID - cpuCount
+		// Skip over any GPUs that are masked
+		if major == 0 && minor == 0 && patch == 0 {
+			slog.Debug("skipping gpu with gfx000")
+			continue
+		}
+
+		// Keep track of numeric IDs based on valid GPUs
+		gpuID := gpuCount
+		gpuCount += 1
 
 		// Shouldn't happen, but just in case...
 		if gpuID < 0 {
@@ -273,6 +274,14 @@ func AMDGetGPUInfo() ([]RocmGPUInfo, error) {
 			name = fmt.Sprintf("%04x:%04x", vendor, device)
 		}
 
+		// Favor UUIDs if available to reduce possibility of getting the numeric IDs wrong
+		var ID string
+		if uniqueID != 0 {
+			ID = fmt.Sprintf("GPU-%016x", uniqueID)
+		} else {
+			ID = strconv.Itoa(gpuID)
+		}
+
 		gpuInfo := RocmGPUInfo{
 			GpuInfo: GpuInfo{
 				Library: "rocm",
@@ -280,7 +289,7 @@ func AMDGetGPUInfo() ([]RocmGPUInfo, error) {
 					TotalMemory: totalMemory,
 					FreeMemory:  (totalMemory - usedMemory),
 				},
-				ID:            strconv.Itoa(gpuID),
+				ID:            ID,
 				Name:          name,
 				Compute:       fmt.Sprintf("gfx%d%x%x", major, minor, patch),
 				MinimumMemory: rocmMinimumMemory,
