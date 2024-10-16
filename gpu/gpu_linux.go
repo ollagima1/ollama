@@ -3,6 +3,7 @@ package gpu
 import (
 	"bufio"
 	"fmt"
+	"log/slog"
 	"os"
 	"reflect"
 	"regexp"
@@ -89,6 +90,19 @@ func GetCPUMem() (memInfo, error) {
 		mem.FreeMemory = available * format.KibiByte
 	} else {
 		mem.FreeMemory = (free + buffers + cached) * format.KibiByte
+	}
+
+	//Don'r try to load model to RAM that is already used By GTT
+	amdGPUs, err := AMDGetGPUInfo()
+	if err != nil {
+		slog.Debug("Error getting AMD GPU info: %v", err)
+	}
+
+	for _, gpuInfo := range amdGPUs {
+		if gpuInfo.ApuUseGTT {
+			mem.TotalMemory -= gpuInfo.TotalMemory
+			mem.FreeMemory -= gpuInfo.TotalMemory
+		}
 	}
 	return mem, nil
 }
