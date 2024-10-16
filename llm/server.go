@@ -108,6 +108,7 @@ func NewLlamaServer(gpus gpu.GpuInfoList, model string, ggml *GGML, adapters, pr
 	if opts.NumGPU == 0 {
 		gpus = gpu.GetCPUInfo()
 	}
+
 	if len(gpus) == 1 && gpus[0].Library == "cpu" {
 		cpuRunner = runners.ServerForCpu()
 		estimate = EstimateGPULayers(gpus, ggml, projectors, opts)
@@ -197,6 +198,21 @@ func NewLlamaServer(gpus gpu.GpuInfoList, model string, ggml *GGML, adapters, pr
 
 	if envconfig.Debug() {
 		params = append(params, "--verbose")
+	}
+
+	rpcServers := ""
+	for _, gpu := range gpus {
+		if gpu.Library != "rpc" {
+			continue
+		}
+
+		if rpcServers != "" {
+			rpcServers += ","
+		}
+		rpcServers += gpu.ID
+	}
+	if rpcServers != "" {
+		params = append(params, "--rpc", rpcServers)
 	}
 
 	if opts.MainGPU > 0 {
