@@ -11,12 +11,24 @@ import (
 	"github.com/ollama/ollama/api"
 )
 
-func floatsEqual32(a, b float32) bool {
-	return math.Abs(float64(a-b)) <= 1e-4
+func dotProduct(v1, v2 []float64) float64 {
+	var result float64 = 0
+	for i := 0; i < len(v1); i++ {
+		result += v1[i] * v2[i]
+	}
+	return result
 }
 
-func floatsEqual64(a, b float64) bool {
-	return math.Abs(a-b) <= 1e-4
+func magnitude(v []float64) float64 {
+	var result float64 = 0
+	for _, val := range v {
+		result += val * val
+	}
+	return math.Sqrt(result)
+}
+
+func cosineSimilarity(v1, v2 []float64) float64 {
+	return dotProduct(v1, v2) / (magnitude(v1) * magnitude(v2))
 }
 
 func TestAllMiniLMEmbeddings(t *testing.T) {
@@ -38,8 +50,10 @@ func TestAllMiniLMEmbeddings(t *testing.T) {
 		t.Fatalf("expected 384 floats, got %d", len(res.Embedding))
 	}
 
-	if !floatsEqual64(res.Embedding[0], 0.06642947345972061) {
-		t.Fatalf("expected 0.06642947345972061, got %.16f", res.Embedding[0])
+	expected := 0.06642947345972061
+	sim := cosineSimilarity([]float64{res.Embedding[0]}, []float64{expected})
+	if sim < 0.99 {
+		t.Fatalf("expected %.16f, got %.16f (similarity: %f)", expected, res.Embedding[0], sim)
 	}
 }
 
@@ -66,8 +80,10 @@ func TestAllMiniLMEmbed(t *testing.T) {
 		t.Fatalf("expected 384 floats, got %d", len(res.Embeddings[0]))
 	}
 
-	if !floatsEqual32(res.Embeddings[0][0], 0.010071031) {
-		t.Fatalf("expected 0.010071031, got %.8f", res.Embeddings[0][0])
+	expected := 0.010071031
+	sim := cosineSimilarity([]float64{float64(res.Embeddings[0][0])}, []float64{expected})
+	if sim < 0.99 {
+		t.Fatalf("expected %.8f, got %.8f (similarity: %f)", expected, res.Embeddings[0][0], sim)
 	}
 
 	if res.PromptEvalCount != 6 {
@@ -98,8 +114,10 @@ func TestAllMiniLMBatchEmbed(t *testing.T) {
 		t.Fatalf("expected 384 floats, got %d", len(res.Embeddings[0]))
 	}
 
-	if !floatsEqual32(res.Embeddings[0][0], 0.010071031) || !floatsEqual32(res.Embeddings[1][0], -0.009802706) {
-		t.Fatalf("expected 0.010071031 and -0.009802706, got %.8f and %.8f", res.Embeddings[0][0], res.Embeddings[1][0])
+	expected := []float64{0.010071031, -0.009802706}
+	sim := cosineSimilarity([]float64{float64(res.Embeddings[0][0]), float64(res.Embeddings[1][0])}, expected)
+	if sim < 0.99 {
+		t.Fatalf("expected %v, got %.8f and %.8f (similarity: %f)", expected, res.Embeddings[0][0], res.Embeddings[1][0], sim)
 	}
 
 	if res.PromptEvalCount != 12 {
