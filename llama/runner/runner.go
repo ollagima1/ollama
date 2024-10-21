@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ollama/ollama/api"
 	"github.com/ollama/ollama/llama"
@@ -293,17 +294,23 @@ func (s *Server) shiftContext(seq *Sequence) {
 }
 
 func flushPending(seq *Sequence) bool {
-	for _, p := range seq.pendingResponses {
-		select {
-		case seq.responses <- p:
-		case <-seq.quit:
-			seq.pendingResponses = []string{}
-			return false
-		}
+	joined := strings.Join(seq.pendingResponses, "")
+	seq.pendingResponses = []string{}
+
+	for !utf8.ValidString(joined) {
+		joined = joined[:len(joined)-1]
 	}
 
-	seq.pendingResponses = []string{}
-	return true
+	if len(joined) == 0 {
+		return true
+	}
+
+	select {
+	case seq.responses <- joined:
+		return true
+	case <-seq.quit:
+		return false
+	}
 }
 
 func (s *Server) removeSequence(seqIndex int, reason string) {
@@ -503,7 +510,7 @@ func (s *Server) processBatch(tokenBatch *llama.Batch, embedBatch *llama.Batch) 
 			continue
 		}
 
-		if incompleteUnicode(sequence) {
+		if !utf8.ValidString(sequence) && len(sequence) < utf8.UTFMax {
 			continue
 		}
 
